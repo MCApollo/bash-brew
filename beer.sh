@@ -52,10 +52,13 @@ function directory() {
 }
 
 function grab() {
-    local regex url line name
+    local regex url line name TEMP
     regex='(https?|ftp|file)://[-A-Za-z0-9\+&@#/%?=~_|!:,.;]*[-A-Za-z0-9\+&@#/%=~_|]'
     name="${1:-$(realpath .)}"
     name="${name##*/}"
+
+    TEMP=$(mktemp)
+    curl https://raw.githubusercontent.com/Homebrew/homebrew-core/master/Formula/${name}.rb --progress-bar > ${TEMP}
 
     while read -r line; do
         [[ "${line}" = \#* || -n ${url} ]] && continue
@@ -63,7 +66,7 @@ function grab() {
             url=( ${line} )
             url="${url[1]//\"}"
         fi
-    done <<< $(curl https://raw.githubusercontent.com/Homebrew/homebrew-core/master/Formula/${name}.rb --progress-bar)
+    done < ${TEMP}
 
     if [[ ${url} =~ ${regex} ]]; then
         (
@@ -74,6 +77,9 @@ function grab() {
         echo "Unable to vaildate URL!" 1>&2
         return 1
     fi
+
+    [[ ! -f ${PWD}/.beer ]] && return
+    ${ROOT:-.}/beverage.py ${TEMP}
 }
 
 function urlopen() {
@@ -103,4 +109,6 @@ if ! declare -f ${func} &>/dev/null; then
     echo "Unknown knowns." 1>&2
     exit 1
 fi
+
+export ROOT=$(dirname $(realpath ${0}))
 ${func} "$@"
