@@ -2,6 +2,8 @@
 set -e
 set -o pipefail
 
+cfversion='1561.00'
+
 function download() {
     local TEMP=$(mktemp)
     curl https://formulae.brew.sh/api/formula.json --progress-bar > ${TEMP}
@@ -16,7 +18,7 @@ function download() {
         conflicts: .conflicts_with,
         build_dependencies: .build_dependencies
     } ]
-    ' > small-db.json
+    ' > ${ROOT}/small-db.json
     echo "Updated small-db.json."
 }
 
@@ -42,17 +44,17 @@ function directory() {
         echo -ne "==> ${name}\r"
         # Gen. basic things.
         mkdir -p "${name}"/_metadata
-        echo "${name}" > "${name}"/_metadata/name
-        echo "${version}" > "${name}"/_metadata/version
-        echo "${description}" > "${name}"/_metadata/description
+        printf "${name}" > "${name}"/_metadata/name
+        printf "${version}" > "${name}"/_metadata/version
+        printf "${description}" > "${name}"/_metadata/description
         touch "${name}"/.beer
         # Clear line.
         echo -ne "$(tput el || echo '\E[K')"
-    done <<< $(cat small-db.json | jq -r '.[] | "\(.name) \(.version) \"\(.description)\""')
+    done <<< $(cat ${ROOT}/small-db.json | jq -r '.[] | "\(.name) \(.version) \"\(.description)\""')
 }
 
 function grab() {
-    local regex url line name TEMP
+    local regex url line name TEMP depends
     regex='(https?|ftp|file)://[-A-Za-z0-9\+&@#/%?=~_|!:,.;]*[-A-Za-z0-9\+&@#/%=~_|]'
     name="${1:-$(realpath .)}"
     name="${name##*/}"
@@ -79,7 +81,35 @@ function grab() {
     fi
 
     [[ ! -f ${PWD}/.beer ]] && return
-    ${ROOT:-.}/beverage.py ${TEMP}
+    if [[ ! -f _metadata/section ]]; then
+      if grep 'library' _metadata/description &>/dev/null; then
+        printf "Development" > _metadata/section
+        printf "purpose::library" > _metadata/tags
+      elif grep 'network' _metadata/description &>/dev/null; then
+        printf "Networking" > _metadata/section
+        printf "purpose::console" > _metadata/tags
+      else
+        printf "Utilities" > _metadata/section
+        printf "purpose::console" > _metadata/tags
+      fi
+    fi
+    # Check for files and create them
+    [[ ! -f _metadata/role ]] && echo "hacker" > _metadata/role
+    [[ ! -f _metadata/in.* ]] && touch _metadata/in.${cfversion}
+    ${ROOT:-.}/beverage.py ${TEMP} # -> will check for make.sh
+
+    depends=( $(cat ${ROOT}/small-db.json | jq -r ".[] | select(.name == \"${name}\") | .depends | @sh") )
+    depends=( ${depends[@]//\'} )
+    for d in ${depends[@]}; do
+        if [[ -d ../${d} ]]; then
+            ln -rs ../${d} _metadata/${d}.dep
+        else
+            [[ -f _metadata/depends ]] && continue
+            echo "Can't find depend ${d}." 1>&2
+            echo "${d}" >> _metadata/depends
+        fi
+    done
+
 }
 
 function urlopen() {
