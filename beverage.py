@@ -41,6 +41,7 @@ def install(x):
     if os.path.exists('make.sh'):
         return
     with open('make.sh', 'w') as fp:
+        fp.write('pkg:setup\n')
         for line in x:
           fp.write(line)
 

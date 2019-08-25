@@ -119,7 +119,7 @@ function urlopen() {
     url=https://github.com/Homebrew/homebrew-core/blob/master/Formula/${name}.rb 
     uiopen ${url} || xdg-open ${url} || open ${url} || \
     {
-        echo "Failed to open URL!"
+        echo "Failed to open URL! ${url}"
         return 1
     }
 }
